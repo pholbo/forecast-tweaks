@@ -11,10 +11,13 @@ This is not affiliated with Forecast — it just tweaks the page's appearance/be
 ## Install
 
 1. Install the [Tampermonkey](https://www.tampermonkey.net/) browser extension (Chrome, Firefox, Edge, Safari all supported).
-2. Click the Tampermonkey icon in your browser toolbar → **Create a new script**.
-3. Delete the placeholder content, and paste in the full contents of [`forecast-tweaks.user.js`](forecast-tweaks.user.js) from this repo.
-4. Save (`Cmd+S` / `Ctrl+S`).
-5. Open or refresh [app.forecast.it](https://app.forecast.it) — the tweaks apply automatically.
+2. **Chrome/Edge/Brave only — required step:** go to `chrome://extensions`, find Tampermonkey, click **Details**, and turn on **Allow User Scripts**. Without this, Tampermonkey silently does nothing — no error, scripts just never run. (Firefox/Safari don't need this step.)
+3. Click the Tampermonkey icon in your browser toolbar → **Create a new script**.
+4. Delete the placeholder content, and paste in the full contents of [`forecast-tweaks.user.js`](forecast-tweaks.user.js) from this repo.
+5. Save (`Cmd+S` / `Ctrl+S`).
+6. Open or refresh [app.forecast.it](https://app.forecast.it) — the tweaks apply automatically.
+
+**Nothing happening?** Double check step 2 — it's the most common cause of "installed but nothing changes."
 
 To update later: open Tampermonkey → find "Forecast Tweaks" → edit → replace with the latest version from this repo → save.
 
