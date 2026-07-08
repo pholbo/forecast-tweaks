@@ -4,7 +4,7 @@ A small userscript that adds a few quality-of-life tweaks to [Forecast](https://
 
 - **Green rows** for tasks marked `Done`
 - **Text wrapping** in columns instead of truncated/cut-off text
-- **Select All** button to quickly select visible task rows
+- **Select All** button that expands every collapsed group and scrolls through the full task list to select everything, subtasks included
 
 This is not affiliated with Forecast — it just tweaks the page's appearance/behaviour in your own browser.
 
@@ -25,7 +25,7 @@ To update later: open Tampermonkey → find "Forecast Tweaks" → edit → repla
 
 Forecast is a modern web app that changes its internal HTML structure over time, so this script may need occasional updates to keep working. If something stops working, please [open an issue](../../issues) — screenshots help a lot.
 
-- **Select All** currently selects only rows that are already visible/expanded on screen. Selecting subtasks hidden under a collapsed group isn't automated yet — expand groups manually first, then click Select All.
+- **Select All** scrolls through the whole list to reach every row, so it takes a few seconds on large projects (button shows "Working..." during this) and the page will visibly jump around while it works — that's expected.
 - **Text wrapping** works well up to ~3 lines. Beyond that, Forecast's own fixed row height clips further text with no ellipsis (a limitation of overriding a JS-controlled layout with CSS alone). Fine for most task names in practice.
 
 ## Contributing
