@@ -11,7 +11,7 @@ This is not affiliated with Forecast — it just tweaks the page's appearance/be
 ## Install
 
 1. Install the [Tampermonkey](https://www.tampermonkey.net/) browser extension (Chrome, Firefox, Edge tested; Safari has a different UI but the same idea).
-2. **Chrome/Edge/Brave only — required step:** go to `chrome://extensions`, find Tampermonkey, click **Details**, and turn on **Allow User Scripts**. Without this, Tampermonkey silently does nothing — no error, scripts just never run. (Firefox doesn't need this step.)
+2. **Chrome/Edge/Brave only — required step:** open your browser's extensions page (`chrome://extensions` in Chrome, `edge://extensions` in Edge, `brave://extensions` in Brave), find Tampermonkey, click **Details**, and turn on **Allow User Scripts**. Without this, Tampermonkey silently does nothing — no error, scripts just never run. (Firefox doesn't need this step.)
 3. Click the Tampermonkey icon in your browser toolbar → **Create a new script**.
 4. Delete the placeholder content. Open the [raw script file](https://raw.githubusercontent.com/pholbo/forecast-tweaks/main/forecast-tweaks.user.js), select all (`Cmd+A` / `Ctrl+A`), copy, and paste it into the editor. (Use the raw link, not the regular GitHub file view — copying from there can pull in line numbers and formatting.)
 5. Save (`Cmd+S` / `Ctrl+S`).
