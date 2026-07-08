@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Forecast Tweaks
 // @namespace    https://github.com/pholbo/forecast-tweaks
-// @version      0.1.0
+// @version      0.2.0
 // @description  Green rows for Done tasks, text wrapping, select-all for app.forecast.it
 // @match        https://app.forecast.it/*
 // @grant        none
@@ -49,35 +49,43 @@
     document.head.appendChild(style);
   }
 
-  // ---------- 3. Select all (currently visible/expanded rows) ----------
+  // ---------- 3. Select all / deselect all (currently visible/expanded rows) ----------
 
-  function selectAllVisible() {
-    document.querySelectorAll(CHECKBOX_SELECTOR).forEach((box) => {
-      if (!box.checked) box.click();
+  function toggleSelectAllVisible() {
+    const boxes = Array.from(document.querySelectorAll(CHECKBOX_SELECTOR));
+    const anyUnchecked = boxes.some((box) => !box.checked);
+    boxes.forEach((box) => {
+      if (anyUnchecked && !box.checked) box.click();
+      else if (!anyUnchecked && box.checked) box.click();
     });
   }
 
   function injectSelectAllButton() {
-    if (document.getElementById('forecast-tweaks-select-all-btn')) return;
-    const btn = document.createElement('button');
-    btn.id = 'forecast-tweaks-select-all-btn';
-    btn.textContent = 'Select All (visible)';
-    Object.assign(btn.style, {
-      position: 'fixed',
-      bottom: '20px',
-      right: '20px',
-      zIndex: 9999,
-      padding: '10px 16px',
-      background: '#2f6f4f',
-      color: '#fff',
-      border: 'none',
-      borderRadius: '6px',
-      cursor: 'pointer',
-      fontSize: '14px',
-      boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
-    });
-    btn.addEventListener('click', selectAllVisible);
-    document.body.appendChild(btn);
+    let btn = document.getElementById('forecast-tweaks-select-all-btn');
+    if (!btn) {
+      btn = document.createElement('button');
+      btn.id = 'forecast-tweaks-select-all-btn';
+      Object.assign(btn.style, {
+        position: 'fixed',
+        bottom: '20px',
+        right: '20px',
+        zIndex: 9999,
+        padding: '10px 16px',
+        background: '#2f6f4f',
+        color: '#fff',
+        border: 'none',
+        borderRadius: '6px',
+        cursor: 'pointer',
+        fontSize: '14px',
+        boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
+      });
+      btn.addEventListener('click', toggleSelectAllVisible);
+      document.body.appendChild(btn);
+    }
+
+    const boxes = document.querySelectorAll(CHECKBOX_SELECTOR);
+    const anyUnchecked = Array.from(boxes).some((box) => !box.checked);
+    btn.textContent = boxes.length > 0 && !anyUnchecked ? 'Deselect All' : 'Select All (visible)';
   }
 
   // ---------- Run + keep re-applying as Forecast re-renders rows ----------
