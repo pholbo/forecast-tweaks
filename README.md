@@ -41,5 +41,3 @@ Issues and pull requests welcome. This project is intentionally simple — one s
 ## License
 
 MIT — see [LICENSE](LICENSE).
-
-Testing commit attribution
