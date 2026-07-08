@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Forecast Tweaks
-// @namespace    https://github.com/YOUR_GITHUB_USERNAME/forecast-tweaks
+// @namespace    https://github.com/pholbo/forecast-tweaks
 // @version      0.1.0
 // @description  Green rows for Done tasks, text wrapping, select-all for app.forecast.it
 // @match        https://app.forecast.it/*
