@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Forecast Tweaks
 // @namespace    https://github.com/pholbo/forecast-tweaks
-// @version      0.2.0
+// @version      0.2.1
 // @description  Green rows for Done tasks, text wrapping, select-all for app.forecast.it
 // @match        https://app.forecast.it/*
 // @grant        none
@@ -52,12 +52,23 @@
   // ---------- 3. Select all / deselect all (currently visible/expanded rows) ----------
 
   function toggleSelectAllVisible() {
-    const boxes = Array.from(document.querySelectorAll(CHECKBOX_SELECTOR));
-    const anyUnchecked = boxes.some((box) => !box.checked);
-    boxes.forEach((box) => {
-      if (anyUnchecked && !box.checked) box.click();
-      else if (!anyUnchecked && box.checked) box.click();
-    });
+    const initialBoxes = document.querySelectorAll(CHECKBOX_SELECTOR);
+    const targetChecked = Array.from(initialBoxes).some((box) => !box.checked);
+
+    let passes = 0;
+    function pass() {
+      passes += 1;
+      // Re-query fresh each pass: clicking a parent row's checkbox can cause
+      // Forecast to re-render its subtask rows, replacing their DOM nodes -
+      // a stale snapshot would end up clicking disconnected elements.
+      const mismatched = Array.from(document.querySelectorAll(CHECKBOX_SELECTOR)).filter(
+        (box) => box.checked !== targetChecked
+      );
+      if (mismatched.length === 0 || passes > 20) return;
+      mismatched.forEach((box) => box.click());
+      setTimeout(pass, 60);
+    }
+    pass();
   }
 
   function injectSelectAllButton() {
