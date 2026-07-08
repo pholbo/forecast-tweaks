@@ -10,14 +10,20 @@ This is not affiliated with Forecast — it just tweaks the page's appearance/be
 
 ## Install
 
-1. Install the [Tampermonkey](https://www.tampermonkey.net/) browser extension (Chrome, Firefox, Edge, Safari all supported).
-2. **Chrome/Edge/Brave only — required step:** go to `chrome://extensions`, find Tampermonkey, click **Details**, and turn on **Allow User Scripts**. Without this, Tampermonkey silently does nothing — no error, scripts just never run. (Firefox/Safari don't need this step.)
+1. Install the [Tampermonkey](https://www.tampermonkey.net/) browser extension (Chrome, Firefox, Edge tested; Safari has a different UI but the same idea).
+2. **Chrome/Edge/Brave only — required step:** go to `chrome://extensions`, find Tampermonkey, click **Details**, and turn on **Allow User Scripts**. Without this, Tampermonkey silently does nothing — no error, scripts just never run. (Firefox doesn't need this step.)
 3. Click the Tampermonkey icon in your browser toolbar → **Create a new script**.
-4. Delete the placeholder content, and paste in the full contents of [`forecast-tweaks.user.js`](forecast-tweaks.user.js) from this repo.
+4. Delete the placeholder content. Open the [raw script file](https://raw.githubusercontent.com/pholbo/forecast-tweaks/main/forecast-tweaks.user.js), select all (`Cmd+A` / `Ctrl+A`), copy, and paste it into the editor. (Use the raw link, not the regular GitHub file view — copying from there can pull in line numbers and formatting.)
 5. Save (`Cmd+S` / `Ctrl+S`).
 6. Open or refresh [app.forecast.it](https://app.forecast.it) — the tweaks apply automatically.
 
-**Nothing happening?** Double check step 2 — it's the most common cause of "installed but nothing changes."
+**Verify it worked:** open any project's task list. Tasks marked `Done` should have a green row background, and a **Select All** button should appear fixed in the bottom-right corner of the page.
+
+**Nothing happening?** Check, in order:
+- Step 2 — the most common cause of "installed but nothing changes."
+- In the Tampermonkey dashboard, is "Forecast Tweaks" listed and its toggle switched on (enabled)?
+- Is the tab actually on `app.forecast.it`? The script only runs on that domain.
+- Try a hard refresh (`Cmd+Shift+R` / `Ctrl+Shift+R`) after installing.
 
 To update later: open Tampermonkey → find "Forecast Tweaks" → edit → replace with the latest version from this repo → save.
 
