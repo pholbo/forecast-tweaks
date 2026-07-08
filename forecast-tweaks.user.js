@@ -33,11 +33,17 @@
     const style = document.createElement('style');
     style.id = 'forecast-tweaks-wrap-style';
     style.textContent = `
-      ${ROW_SELECTOR} [width] {
+      ${ROW_SELECTOR} [width],
+      ${ROW_SELECTOR} [width] * {
         white-space: normal !important;
         overflow: visible !important;
         text-overflow: clip !important;
         word-break: break-word;
+      }
+      ${ROW_SELECTOR} {
+        height: auto !important;
+        min-height: 100%;
+        align-items: flex-start !important;
       }
     `;
     document.head.appendChild(style);
