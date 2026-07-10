@@ -2,13 +2,13 @@
 
 A small userscript that adds a few quality-of-life tweaks to [Forecast](https://app.forecast.it) (project management tool):
 
-- **Status colour-coding** — rows (or just the status selector, via toggle) coloured by their Forecast status (Backlog, Spec refinement, To-do, In progress, PR Review, Deployment ready, Done, Archived)
+- **Status colour-coding** — rows (or just the status selector, via toggle) coloured by their Forecast status (Backlog, Spec refinement, To-do, In progress, PR Review, Deployment ready, Done, Archived by default) — colours and enabled statuses are user-configurable, and you can add colour rules for your own custom statuses too
 - **Text wrapping** in columns instead of truncated/cut-off text
 - **Select All** button that expands every collapsed group and scrolls through the full task list to select everything, subtasks included
 
 This is not affiliated with Forecast — it just tweaks the page's appearance/behaviour in your own browser.
 
-Each tweak can be turned on/off individually via the Tampermonkey icon's dropdown menu (while on an `app.forecast.it` tab) — all are on by default. Toggling reloads the page to apply the change.
+All settings — which tweaks are on, per-status colours, custom statuses — live in one panel: click the Tampermonkey icon (while on an `app.forecast.it` tab) → **⚙ Forecast Tweaks settings...**. Everything is on with default colours out of the box. Saving reloads the page to apply your changes.
 
 ## Install
 
