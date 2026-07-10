@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Forecast Tweaks
 // @namespace    https://github.com/pholbo/forecast-tweaks
-// @version      0.5.0
-// @description  Colour-code rows by Forecast status, text wrapping, select-all for app.forecast.it - each feature toggleable via Tampermonkey menu
+// @version      0.6.0
+// @description  Colour-code rows by Forecast status (colours/statuses user-configurable), text wrapping, select-all for app.forecast.it - configured via a single Tampermonkey settings panel
 // @match        https://app.forecast.it/*
 // @grant        GM_registerMenuCommand
 // @grant        GM_setValue
@@ -15,7 +15,9 @@
   const ROW_SELECTOR = '[data-cy="task-row"]';
   const CHECKBOX_SELECTOR = '[data-cy="selector-checkbox"]';
 
-  // Fixed v1 palette (see issue #3). Unlisted/custom statuses get no colour.
+  // Built-in defaults (see issue #3). Users can override colours, add their own
+  // statuses, and toggle colouring per-status via the settings panel (issue #11) -
+  // these stay as the fallback for any status the user hasn't customised.
   const STATUS_COLORS = {
     Backlog: '#e0e0e0',
     'Spec refinement': '#cfe2ff',
@@ -27,7 +29,34 @@
     Archived: '#c7c7c7',
   };
 
-  // ---------- Feature toggles (Tampermonkey menu, on by default) ----------
+  // ---------- Status colour overrides (user-configurable, see issue #11) ----------
+
+  const STATUS_OVERRIDES_KEY = 'statusColorOverrides';
+
+  function getStatusOverrides() {
+    return JSON.parse(GM_getValue(STATUS_OVERRIDES_KEY, '{}'));
+  }
+
+  // Merges user overrides (colour and/or enabled changes to a default status, plus
+  // wholly custom statuses) on top of STATUS_COLORS. Only *changed* statuses are
+  // ever stored in the override blob (see the settings panel's Save handler), so a
+  // status the user never touched keeps tracking the built-in default even if that
+  // default changes in a later version of the script.
+  function getEffectiveStatuses() {
+    const overrides = getStatusOverrides();
+    const result = {};
+    Object.entries(STATUS_COLORS).forEach(([status, color]) => {
+      result[status] = overrides[status]
+        ? { color: overrides[status].color, enabled: overrides[status].enabled }
+        : { color, enabled: true };
+    });
+    Object.entries(overrides).forEach(([status, cfg]) => {
+      if (!result[status]) result[status] = cfg;
+    });
+    return result;
+  }
+
+  // ---------- Feature toggles (configured via the settings panel, on by default) ----------
 
   const FEATURES = {
     statusColors: { label: 'Status colours', default: true },
@@ -40,26 +69,14 @@
     return GM_getValue(`feature_${key}`, FEATURES[key].default);
   }
 
-  function toggleFeature(key) {
-    GM_setValue(`feature_${key}`, !isFeatureEnabled(key));
-    location.reload();
-  }
-
-  function registerFeatureMenuCommands() {
-    Object.keys(FEATURES).forEach((key) => {
-      const mark = isFeatureEnabled(key) ? '✓' : '✗';
-      GM_registerMenuCommand(`${mark} ${FEATURES[key].label}`, () => toggleFeature(key));
-    });
-  }
-
   // ---------- 1. Colour-code rows by Forecast status ----------
 
   // The status selector renders its current value as an element whose title and
   // text content both equal the status name (this is how the prior Done-only
   // logic found it too) - find that element and look up its colour.
-  function findStatusElement(row) {
+  function findStatusElement(row, effectiveStatuses) {
     return Array.from(row.querySelectorAll('[title]')).find(
-      (el) => el.title.trim() === el.textContent.trim() && STATUS_COLORS.hasOwnProperty(el.title.trim())
+      (el) => el.title.trim() === el.textContent.trim() && effectiveStatuses.hasOwnProperty(el.title.trim())
     );
   }
 
@@ -72,14 +89,17 @@
   // plain inline write, since that's a real cascade comparison.
   const STATUS_ATTR = 'data-forecast-tweaks-status';
 
-  function injectStatusColorCSS() {
-    if (document.getElementById('forecast-tweaks-status-style')) return;
-    const style = document.createElement('style');
-    style.id = 'forecast-tweaks-status-style';
-    style.textContent = Object.entries(STATUS_COLORS)
-      .map(([status, color]) => `[${STATUS_ATTR}="${status}"] { background-color: ${color} !important; }`)
+  function injectStatusColorCSS(effectiveStatuses) {
+    let style = document.getElementById('forecast-tweaks-status-style');
+    if (!style) {
+      style = document.createElement('style');
+      style.id = 'forecast-tweaks-status-style';
+      document.head.appendChild(style);
+    }
+    style.textContent = Object.entries(effectiveStatuses)
+      .filter(([, cfg]) => cfg.enabled)
+      .map(([status, cfg]) => `[${STATUS_ATTR}="${status}"] { background-color: ${cfg.color} !important; }`)
       .join('\n');
-    document.head.appendChild(style);
   }
 
   function setStatusAttr(el, status) {
@@ -97,10 +117,11 @@
   const STATUS_WRAPPER_SELECTOR = '[data-cy="task-status"]';
 
   function styleStatusColors() {
-    injectStatusColorCSS();
+    const effectiveStatuses = getEffectiveStatuses();
+    injectStatusColorCSS(effectiveStatuses);
     const selectorOnly = isFeatureEnabled('statusColorsSelectorOnly');
     document.querySelectorAll(ROW_SELECTOR).forEach((row) => {
-      const statusEl = findStatusElement(row);
+      const statusEl = findStatusElement(row, effectiveStatuses);
       const status = statusEl ? statusEl.title.trim() : undefined;
       // Parent tasks (with subtasks) show status as plain read-only text with
       // no dropdown wrapper at all - fall back to colouring the badge itself
@@ -259,6 +280,197 @@
     btn.textContent = boxes.length > 0 && !anyUnchecked ? 'Deselect All' : 'Select All';
   }
 
+  // ---------- 4. Unified settings panel (features + status colours, issue #11) ----------
+
+  function buildFeatureRow(key) {
+    const row = document.createElement('label');
+    Object.assign(row.style, { display: 'flex', alignItems: 'center', gap: '8px', padding: '4px 0' });
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.checked = isFeatureEnabled(key);
+    checkbox.dataset.featureKey = key;
+    row.appendChild(checkbox);
+    row.appendChild(document.createTextNode(FEATURES[key].label));
+    return row;
+  }
+
+  function buildStatusRow(status, cfg, isCustom) {
+    const row = document.createElement('div');
+    row.dataset.status = status;
+    row.dataset.custom = isCustom ? '1' : '';
+    Object.assign(row.style, { display: 'flex', alignItems: 'center', gap: '8px', padding: '4px 0' });
+
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.checked = cfg.enabled;
+    checkbox.className = 'forecast-tweaks-status-enabled';
+
+    const colorInput = document.createElement('input');
+    colorInput.type = 'color';
+    colorInput.value = cfg.color;
+    colorInput.className = 'forecast-tweaks-status-color';
+
+    const label = document.createElement('span');
+    label.textContent = status;
+    Object.assign(label.style, { flexGrow: '1', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' });
+
+    row.appendChild(checkbox);
+    row.appendChild(colorInput);
+    row.appendChild(label);
+
+    if (isCustom) {
+      const removeBtn = document.createElement('button');
+      removeBtn.type = 'button';
+      removeBtn.textContent = 'Remove';
+      Object.assign(removeBtn.style, { fontSize: '12px', cursor: 'pointer' });
+      removeBtn.addEventListener('click', () => row.remove());
+      row.appendChild(removeBtn);
+    }
+
+    return row;
+  }
+
+  function openSettingsPanel() {
+    if (document.getElementById('forecast-tweaks-settings-overlay')) return;
+
+    const overlay = document.createElement('div');
+    overlay.id = 'forecast-tweaks-settings-overlay';
+    Object.assign(overlay.style, {
+      position: 'fixed',
+      inset: '0',
+      background: 'rgba(0,0,0,0.5)',
+      zIndex: 10000,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+    });
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) overlay.remove();
+    });
+
+    const panel = document.createElement('div');
+    Object.assign(panel.style, {
+      background: '#fff',
+      color: '#1a1a1a',
+      width: '420px',
+      maxHeight: '80vh',
+      overflowY: 'auto',
+      padding: '20px',
+      borderRadius: '8px',
+      boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
+      fontFamily: 'sans-serif',
+      fontSize: '14px',
+    });
+    overlay.appendChild(panel);
+
+    const title = document.createElement('h2');
+    title.textContent = 'Forecast Tweaks settings';
+    Object.assign(title.style, { margin: '0 0 12px', fontSize: '16px' });
+    panel.appendChild(title);
+
+    const featuresHeading = document.createElement('h3');
+    featuresHeading.textContent = 'Features';
+    Object.assign(featuresHeading.style, { margin: '12px 0 4px', fontSize: '13px' });
+    panel.appendChild(featuresHeading);
+
+    Object.keys(FEATURES).forEach((key) => panel.appendChild(buildFeatureRow(key)));
+
+    const statusHeading = document.createElement('h3');
+    statusHeading.textContent = 'Status colours';
+    Object.assign(statusHeading.style, { margin: '16px 0 4px', fontSize: '13px' });
+    panel.appendChild(statusHeading);
+
+    const statusRows = document.createElement('div');
+    statusRows.id = 'forecast-tweaks-status-rows';
+    Object.entries(getEffectiveStatuses()).forEach(([status, cfg]) => {
+      statusRows.appendChild(buildStatusRow(status, cfg, !STATUS_COLORS.hasOwnProperty(status)));
+    });
+    panel.appendChild(statusRows);
+
+    const addRow = document.createElement('div');
+    Object.assign(addRow.style, { display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 0' });
+    const nameInput = document.createElement('input');
+    nameInput.type = 'text';
+    nameInput.placeholder = 'New status name';
+    Object.assign(nameInput.style, { flexGrow: '1', minWidth: '0' });
+    const newColorInput = document.createElement('input');
+    newColorInput.type = 'color';
+    newColorInput.value = '#cccccc';
+    const addBtn = document.createElement('button');
+    addBtn.type = 'button';
+    addBtn.textContent = 'Add';
+    addBtn.addEventListener('click', () => {
+      const name = nameInput.value.trim();
+      if (!name) return;
+      const exists = Array.from(statusRows.children).some((row) => row.dataset.status === name);
+      if (exists) {
+        alert(`"${name}" is already in the list.`);
+        return;
+      }
+      statusRows.appendChild(buildStatusRow(name, { color: newColorInput.value, enabled: true }, true));
+      nameInput.value = '';
+    });
+    addRow.appendChild(nameInput);
+    addRow.appendChild(newColorInput);
+    addRow.appendChild(addBtn);
+    panel.appendChild(addRow);
+
+    const buttonRow = document.createElement('div');
+    Object.assign(buttonRow.style, { display: 'flex', alignItems: 'center', gap: '8px', marginTop: '16px' });
+
+    const resetBtn = document.createElement('button');
+    resetBtn.type = 'button';
+    resetBtn.textContent = 'Reset to defaults';
+    Object.assign(resetBtn.style, { marginRight: 'auto', cursor: 'pointer' });
+    resetBtn.addEventListener('click', () => {
+      Object.keys(FEATURES).forEach((key) => GM_setValue(`feature_${key}`, FEATURES[key].default));
+      GM_setValue(STATUS_OVERRIDES_KEY, '{}');
+      location.reload();
+    });
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.type = 'button';
+    cancelBtn.textContent = 'Cancel';
+    Object.assign(cancelBtn.style, { cursor: 'pointer' });
+    cancelBtn.addEventListener('click', () => overlay.remove());
+
+    const saveBtn = document.createElement('button');
+    saveBtn.type = 'button';
+    saveBtn.textContent = 'Save';
+    Object.assign(saveBtn.style, {
+      background: '#2f6f4f',
+      color: '#fff',
+      border: 'none',
+      borderRadius: '4px',
+      padding: '6px 14px',
+      cursor: 'pointer',
+    });
+    saveBtn.addEventListener('click', () => {
+      panel.querySelectorAll('input[data-feature-key]').forEach((checkbox) => {
+        GM_setValue(`feature_${checkbox.dataset.featureKey}`, checkbox.checked);
+      });
+
+      const overrides = {};
+      Array.from(statusRows.children).forEach((row) => {
+        const status = row.dataset.status;
+        const enabled = row.querySelector('.forecast-tweaks-status-enabled').checked;
+        const color = row.querySelector('.forecast-tweaks-status-color').value;
+        const isCustom = row.dataset.custom === '1';
+        const matchesDefault = !isCustom && STATUS_COLORS[status] === color && enabled === true;
+        if (!matchesDefault) overrides[status] = { color, enabled };
+      });
+      GM_setValue(STATUS_OVERRIDES_KEY, JSON.stringify(overrides));
+      location.reload();
+    });
+
+    buttonRow.appendChild(resetBtn);
+    buttonRow.appendChild(cancelBtn);
+    buttonRow.appendChild(saveBtn);
+    panel.appendChild(buttonRow);
+
+    document.body.appendChild(overlay);
+  }
+
   // ---------- Run + keep re-applying as Forecast re-renders rows ----------
 
   function applyAll() {
@@ -283,6 +495,6 @@
   // periodic re-apply self-heals that within ~1s regardless of the exact cause.
   setInterval(applyAll, 1000);
 
-  registerFeatureMenuCommands();
+  GM_registerMenuCommand('⚙ Forecast Tweaks settings...', openSettingsPanel);
   applyAll();
 })();
