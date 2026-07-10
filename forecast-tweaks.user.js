@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Forecast Tweaks
 // @namespace    https://github.com/pholbo/forecast-tweaks
-// @version      0.6.4
+// @version      0.6.5
 // @description  Colour-code rows by Forecast status (colours/statuses user-configurable), text wrapping, select-all for app.forecast.it - configured via a single Tampermonkey settings panel
 // @match        https://app.forecast.it/*
 // @grant        GM_registerMenuCommand
@@ -362,8 +362,20 @@
     btn.textContent = document.querySelector(BULK_SELECTION_BAR_SELECTOR) ? 'Deselect All' : 'Select All';
   }
 
+  // Only useful on the project task-list view, where ROW_SELECTOR/checkboxes actually
+  // exist - on other Forecast views (dashboards, timeline, reports, etc.) it has no
+  // valid target. Forecast is an SPA with no reliable URL signal for this, so we key
+  // off the DOM itself; applyAll's existing observer/interval loop re-checks this on
+  // every re-render, so the button is added/removed as the user navigates.
   function injectSelectAllButton() {
+    const hasTaskList = !!document.querySelector(ROW_SELECTOR);
     let btn = document.getElementById('forecast-tweaks-select-all-btn');
+
+    if (!hasTaskList) {
+      if (btn) btn.remove();
+      return;
+    }
+
     if (!btn) {
       btn = document.createElement('button');
       btn.id = 'forecast-tweaks-select-all-btn';
