@@ -102,7 +102,10 @@
     document.querySelectorAll(ROW_SELECTOR).forEach((row) => {
       const statusEl = findStatusElement(row);
       const status = statusEl ? statusEl.title.trim() : undefined;
-      const wrapperEl = statusEl && statusEl.closest(STATUS_WRAPPER_SELECTOR);
+      // Parent tasks (with subtasks) show status as plain read-only text with
+      // no dropdown wrapper at all - fall back to colouring the badge itself
+      // rather than leaving them uncoloured in selector-only mode.
+      const wrapperEl = statusEl && (statusEl.closest(STATUS_WRAPPER_SELECTOR) || statusEl);
       // Rows are recycled by Forecast's virtualized list, so always set both
       // targets (even to undefined) rather than only the active mode's target.
       setStatusAttr(row, !selectorOnly && status ? status : undefined);
