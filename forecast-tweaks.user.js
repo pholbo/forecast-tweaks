@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Forecast Tweaks
 // @namespace    https://github.com/pholbo/forecast-tweaks
-// @version      0.4.0
-// @description  Green rows for Done tasks, text wrapping, select-all for app.forecast.it - each feature toggleable via Tampermonkey menu
+// @version      0.5.0
+// @description  Colour-code rows by Forecast status, text wrapping, select-all for app.forecast.it - each feature toggleable via Tampermonkey menu
 // @match        https://app.forecast.it/*
 // @grant        GM_registerMenuCommand
 // @grant        GM_setValue
@@ -12,15 +12,26 @@
 (function () {
   'use strict';
 
-  const DONE_TEXT = 'Done';
-  const DONE_BG_COLOR = '#d7f5df';
   const ROW_SELECTOR = '[data-cy="task-row"]';
   const CHECKBOX_SELECTOR = '[data-cy="selector-checkbox"]';
+
+  // Fixed v1 palette (see issue #3). Unlisted/custom statuses get no colour.
+  const STATUS_COLORS = {
+    Backlog: '#e0e0e0',
+    'Spec refinement': '#cfe2ff',
+    'To-do': '#e3f2fd',
+    'In progress': '#ffe8b3',
+    'PR Review': '#e6d7f5',
+    'Deployment ready': '#c2f0e8',
+    Done: '#d7f5df',
+    Archived: '#c7c7c7',
+  };
 
   // ---------- Feature toggles (Tampermonkey menu, on by default) ----------
 
   const FEATURES = {
-    doneRows: { label: 'Green Done rows', default: true },
+    statusColors: { label: 'Status colours', default: true },
+    statusColorsSelectorOnly: { label: 'Status colours: selector only (not full row)', default: false },
     textWrap: { label: 'Text wrapping', default: true },
     selectAll: { label: 'Select All button', default: true },
   };
@@ -41,14 +52,61 @@
     });
   }
 
-  // ---------- 1. Green rows for Done tasks ----------
+  // ---------- 1. Colour-code rows by Forecast status ----------
 
-  function styleDoneRows() {
+  // The status selector renders its current value as an element whose title and
+  // text content both equal the status name (this is how the prior Done-only
+  // logic found it too) - find that element and look up its colour.
+  function findStatusElement(row) {
+    return Array.from(row.querySelectorAll('[title]')).find(
+      (el) => el.title.trim() === el.textContent.trim() && STATUS_COLORS.hasOwnProperty(el.title.trim())
+    );
+  }
+
+  // Forecast re-applies its own inline style on hover (a plain style.property
+  // write, which fully replaces any prior value we set - !important on our
+  // side doesn't survive that because it's not a cascade, it's a straight
+  // overwrite). So instead of writing background-color directly, we mark the
+  // element with a data attribute and let an injected stylesheet rule (below)
+  // own the actual colour - a stylesheet !important rule reliably beats a
+  // plain inline write, since that's a real cascade comparison.
+  const STATUS_ATTR = 'data-forecast-tweaks-status';
+
+  function injectStatusColorCSS() {
+    if (document.getElementById('forecast-tweaks-status-style')) return;
+    const style = document.createElement('style');
+    style.id = 'forecast-tweaks-status-style';
+    style.textContent = Object.entries(STATUS_COLORS)
+      .map(([status, color]) => `[${STATUS_ATTR}="${status}"] { background-color: ${color} !important; }`)
+      .join('\n');
+    document.head.appendChild(style);
+  }
+
+  function setStatusAttr(el, status) {
+    if (status) {
+      if (el.getAttribute(STATUS_ATTR) !== status) el.setAttribute(STATUS_ATTR, status);
+    } else if (el.hasAttribute(STATUS_ATTR)) {
+      el.removeAttribute(STATUS_ATTR);
+    }
+  }
+
+  // The badge we detect status from (title === text content) sits inside a
+  // wrapper Forecast swaps out for an editable dropdown on hover, which wipes
+  // any marker we put on the badge itself. Colour that stable wrapper instead
+  // - it's the anchor for the whole dropdown and survives the hover swap.
+  const STATUS_WRAPPER_SELECTOR = '[data-cy="task-status"]';
+
+  function styleStatusColors() {
+    injectStatusColorCSS();
+    const selectorOnly = isFeatureEnabled('statusColorsSelectorOnly');
     document.querySelectorAll(ROW_SELECTOR).forEach((row) => {
-      const isDone = Array.from(row.querySelectorAll('[title]')).some(
-        (el) => el.title.trim() === DONE_TEXT && el.textContent.trim() === DONE_TEXT
-      );
-      row.style.backgroundColor = isDone ? DONE_BG_COLOR : '';
+      const statusEl = findStatusElement(row);
+      const status = statusEl ? statusEl.title.trim() : undefined;
+      const wrapperEl = statusEl && statusEl.closest(STATUS_WRAPPER_SELECTOR);
+      // Rows are recycled by Forecast's virtualized list, so always set both
+      // targets (even to undefined) rather than only the active mode's target.
+      setStatusAttr(row, !selectorOnly && status ? status : undefined);
+      if (wrapperEl) setStatusAttr(wrapperEl, selectorOnly && status ? status : undefined);
     });
   }
 
@@ -201,7 +259,7 @@
   // ---------- Run + keep re-applying as Forecast re-renders rows ----------
 
   function applyAll() {
-    if (isFeatureEnabled('doneRows')) styleDoneRows();
+    if (isFeatureEnabled('statusColors')) styleStatusColors();
     if (isFeatureEnabled('textWrap')) injectWrapCSS();
     if (isFeatureEnabled('selectAll')) injectSelectAllButton();
   }
@@ -214,6 +272,13 @@
 
   const observer = new MutationObserver(scheduleApply);
   observer.observe(document.body, { childList: true, subtree: true });
+
+  // Safety net: the status cell's hover interaction appears to swap its own
+  // DOM node in/out (not just its style), and that transition doesn't always
+  // land within our mutation-triggered debounce window - some rows are left
+  // unstyled until something else happens to trigger a mutation. A cheap
+  // periodic re-apply self-heals that within ~1s regardless of the exact cause.
+  setInterval(applyAll, 1000);
 
   registerFeatureMenuCommands();
   applyAll();
