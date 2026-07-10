@@ -8,6 +8,8 @@ A small userscript that adds a few quality-of-life tweaks to [Forecast](https://
 
 This is not affiliated with Forecast — it just tweaks the page's appearance/behaviour in your own browser.
 
+Each tweak can be turned on/off individually via the Tampermonkey icon's dropdown menu (while on an `app.forecast.it` tab) — all are on by default. Toggling reloads the page to apply the change.
+
 ## Install
 
 1. Install the [Tampermonkey](https://www.tampermonkey.net/) browser extension (Chrome, Firefox, Edge tested; Safari has a different UI but the same idea).
