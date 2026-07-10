@@ -1,10 +1,12 @@
 // ==UserScript==
 // @name         Forecast Tweaks
 // @namespace    https://github.com/pholbo/forecast-tweaks
-// @version      0.3.0
-// @description  Green rows for Done tasks, text wrapping, select-all for app.forecast.it
+// @version      0.4.0
+// @description  Green rows for Done tasks, text wrapping, select-all for app.forecast.it - each feature toggleable via Tampermonkey menu
 // @match        https://app.forecast.it/*
-// @grant        none
+// @grant        GM_registerMenuCommand
+// @grant        GM_setValue
+// @grant        GM_getValue
 // ==/UserScript==
 
 (function () {
@@ -14,6 +16,30 @@
   const DONE_BG_COLOR = '#d7f5df';
   const ROW_SELECTOR = '[data-cy="task-row"]';
   const CHECKBOX_SELECTOR = '[data-cy="selector-checkbox"]';
+
+  // ---------- Feature toggles (Tampermonkey menu, on by default) ----------
+
+  const FEATURES = {
+    doneRows: { label: 'Green Done rows', default: true },
+    textWrap: { label: 'Text wrapping', default: true },
+    selectAll: { label: 'Select All button', default: true },
+  };
+
+  function isFeatureEnabled(key) {
+    return GM_getValue(`feature_${key}`, FEATURES[key].default);
+  }
+
+  function toggleFeature(key) {
+    GM_setValue(`feature_${key}`, !isFeatureEnabled(key));
+    location.reload();
+  }
+
+  function registerFeatureMenuCommands() {
+    Object.keys(FEATURES).forEach((key) => {
+      const mark = isFeatureEnabled(key) ? '✓' : '✗';
+      GM_registerMenuCommand(`${mark} ${FEATURES[key].label}`, () => toggleFeature(key));
+    });
+  }
 
   // ---------- 1. Green rows for Done tasks ----------
 
@@ -175,9 +201,9 @@
   // ---------- Run + keep re-applying as Forecast re-renders rows ----------
 
   function applyAll() {
-    styleDoneRows();
-    injectWrapCSS();
-    injectSelectAllButton();
+    if (isFeatureEnabled('doneRows')) styleDoneRows();
+    if (isFeatureEnabled('textWrap')) injectWrapCSS();
+    if (isFeatureEnabled('selectAll')) injectSelectAllButton();
   }
 
   let debounceTimer = null;
@@ -189,5 +215,6 @@
   const observer = new MutationObserver(scheduleApply);
   observer.observe(document.body, { childList: true, subtree: true });
 
+  registerFeatureMenuCommands();
   applyAll();
 })();
