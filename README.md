@@ -2,7 +2,7 @@
 
 A small userscript that adds a few quality-of-life tweaks to [Forecast](https://app.forecast.it) (project management tool):
 
-- **Green rows** for tasks marked `Done`
+- **Status colour-coding** — rows (or just the status selector, via toggle) coloured by their Forecast status (Backlog, Spec refinement, To-do, In progress, PR Review, Deployment ready, Done, Archived)
 - **Text wrapping** in columns instead of truncated/cut-off text
 - **Select All** button that expands every collapsed group and scrolls through the full task list to select everything, subtasks included
 
@@ -19,7 +19,7 @@ Each tweak can be turned on/off individually via the Tampermonkey icon's dropdow
 5. Save (`Cmd+S` / `Ctrl+S`).
 6. Open or refresh [app.forecast.it](https://app.forecast.it) — the tweaks apply automatically.
 
-**Verify it worked:** open any project's task list. Tasks marked `Done` should have a green row background, and a **Select All** button should appear fixed in the bottom-right corner of the page.
+**Verify it worked:** open any project's task list. Rows should be tinted according to their status (e.g. `Done` tasks green), and a **Select All** button should appear fixed in the bottom-right corner of the page.
 
 **Nothing happening?** Check, in order:
 - Step 2 — the most common cause of "installed but nothing changes."
