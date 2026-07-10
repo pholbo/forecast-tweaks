@@ -4,7 +4,7 @@ A small userscript that adds a few quality-of-life tweaks to [Forecast](https://
 
 - **Status colour-coding** — rows (or just the status selector, via toggle) coloured by their Forecast status (Backlog, Spec refinement, To-do, In progress, PR Review, Deployment ready, Done, Archived by default) — colours and enabled statuses are user-configurable, and you can add colour rules for your own custom statuses too
 - **Text wrapping** in columns instead of truncated/cut-off text
-- **Select All** button that expands every collapsed group and scrolls through the full task list to select everything, subtasks included
+- **Select All** button that expands every collapsed group and scrolls through the full task list to select everything, subtasks included — toggles to **Deselect All** once something's selected, which just triggers Forecast's own clear-selection
 
 This is not affiliated with Forecast — it just tweaks the page's appearance/behaviour in your own browser.
 
@@ -34,6 +34,7 @@ To update later: open Tampermonkey → find "Forecast Tweaks" → edit → repla
 Forecast is a modern web app that changes its internal HTML structure over time, so this script may need occasional updates to keep working. If something stops working, please [open an issue](../../issues) — screenshots help a lot.
 
 - **Select All** scrolls through the whole list to reach every row, so it takes a few seconds on large projects (button shows "Working..." during this) and the page will visibly jump around while it works — that's expected.
+- **Select All**'s expand-toggle detection is structural (Forecast gives it no stable `data-cy`/aria markup to key off), so it can in principle break on a future Forecast redesign. It logs a console warning (`[Forecast Tweaks] expand toggle click didn't expand task ...`) if a click doesn't do what was expected, rather than failing silently — if you see that a lot, please open an issue.
 - **Text wrapping** works well up to ~3 lines. Beyond that, Forecast's own fixed row height clips further text with no ellipsis (a limitation of overriding a JS-controlled layout with CSS alone). Fine for most task names in practice.
 
 ## Contributing

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Forecast Tweaks
 // @namespace    https://github.com/pholbo/forecast-tweaks
-// @version      0.6.0
+// @version      0.6.4
 // @description  Colour-code rows by Forecast status (colours/statuses user-configurable), text wrapping, select-all for app.forecast.it - configured via a single Tampermonkey settings panel
 // @match        https://app.forecast.it/*
 // @grant        GM_registerMenuCommand
@@ -164,40 +164,137 @@
   // (not the page) so we can force every row to mount by scrolling through it in steps.
   const SCROLL_CONTAINER_SELECTOR = '.ReactVirtualized__Grid.ReactVirtualized__List';
 
-  // A task row's 3rd child div is the expand/collapse toggle. On rows WITH subtasks it
-  // carries this extra class; leaf rows (no subtasks) don't have it at all. We deliberately
-  // don't key off the state-dependent hash class (e.g. icMlKC vs fukpXZ) since that's a
-  // per-build styled-components hash likely to change on any Forecast redeploy - instead
-  // we click it and verify the result by checking whether the row count actually grew.
-  const EXPAND_TOGGLE_SELECTOR = ':scope > .sc-cbelJu';
+  // Forecast's own "N tasks selected" bulk-action bar, which only renders while at least
+  // one task is selected. Its buttons (automate/update/move/delete) all carry a data-cy,
+  // but the leading X (clear selection) doesn't - it's a bare icon with no semantic
+  // markup. It's reliably the first <svg> in the bar though (it's positioned before the
+  // labelled buttons), so we click that rather than trying to reproduce the deselect
+  // ourselves - Forecast's own clear-selection acts on its actual selection state, not
+  // the virtualized DOM, so it isn't subject to the expand/collapse detection issues below.
+  const BULK_SELECTION_BAR_SELECTOR = '[data-userpilot="bulk-select-popup"]';
+
+  function clickNativeClearSelection() {
+    const bar = document.querySelector(BULK_SELECTION_BAR_SELECTOR);
+    const closeIcon = bar && bar.querySelector('svg');
+    if (!closeIcon) return false;
+    closeIcon.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    return true;
+  }
+
+  // A task row's 3rd child div is the expand/collapse toggle slot - present on every row,
+  // leaf or not, so its position is stable. What differs is that rows WITH subtasks get
+  // extra prop-based classes on that div (a state-dependent styled-components hash, e.g.
+  // icMlKC vs fukpXZ) that leaf rows don't. We deliberately don't key off those hash class
+  // names directly since they're a per-build styled-components hash likely to change on any
+  // Forecast redeploy - instead we compare each row's toggle div class-list length against
+  // the most common ("baseline"/leaf) length across all currently-rendered rows; anything
+  // with MORE classes than that baseline is treated as an expandable toggle. We then click
+  // it and verify the result by checking whether the row count actually grew, warning if it
+  // doesn't so a future layout change (e.g. the toggle moving off the 3rd child) isn't silent.
+  function getToggleDiv(row) {
+    return row.children[2] || null;
+  }
+
+  function getToggleBaselineLength(rows) {
+    const counts = new Map();
+    rows.forEach((row) => {
+      const toggle = getToggleDiv(row);
+      if (toggle) counts.set(toggle.classList.length, (counts.get(toggle.classList.length) || 0) + 1);
+    });
+    let baseline = null;
+    let baselineCount = -1;
+    counts.forEach((count, length) => {
+      if (count > baselineCount) {
+        baseline = length;
+        baselineCount = count;
+      }
+    });
+    return baseline;
+  }
+
+  function hasExpandToggle(row, baselineLength) {
+    const toggle = getToggleDiv(row);
+    return !!toggle && baselineLength !== null && toggle.classList.length > baselineLength;
+  }
 
   function wait(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
+  // Polls instead of a single fixed-delay check - a parent with a large number of
+  // subtasks can take longer than a short fixed wait to finish mounting them, and
+  // measuring too early would misreport a real success as a failure.
+  function waitForRowCountChange(before, timeoutMs) {
+    return new Promise((resolve) => {
+      const start = Date.now();
+      const check = () => {
+        const count = document.querySelectorAll(ROW_SELECTOR).length;
+        if (count !== before || Date.now() - start >= timeoutMs) {
+          resolve(count);
+        } else {
+          setTimeout(check, 100);
+        }
+      };
+      check();
+    });
+  }
+
   async function ensureExpandedByTaskId(taskId) {
+    // Up to 2 attempts: if the row turns out to have already been expanded, our first
+    // click collapses it (count drops) rather than expanding it - a second click then
+    // puts it back. We re-look-up the row fresh on every attempt (rather than reusing
+    // one reference across both clicks) because Forecast's virtualized list recycles
+    // row DOM nodes on re-render - reusing a pre-click reference after that happens
+    // means the second click lands on a detached node and silently does nothing.
     for (let attempt = 0; attempt < 2; attempt += 1) {
+      const rows = Array.from(document.querySelectorAll(ROW_SELECTOR));
+      const baselineLength = getToggleBaselineLength(rows);
       const idEl = Array.from(document.querySelectorAll('[data-cy="task-id"]')).find(
         (el) => el.textContent.trim() === taskId
       );
       const row = idEl && idEl.closest(ROW_SELECTOR);
-      const toggle = row && row.querySelector(EXPAND_TOGGLE_SELECTOR);
-      if (!toggle) return;
-      const before = document.querySelectorAll(ROW_SELECTOR).length;
+      if (!row) return; // scrolled out of view - not a failure
+      if (!hasExpandToggle(row, baselineLength)) return; // no subtasks
+
+      const before = rows.length;
+      const toggle = getToggleDiv(row);
       toggle.click();
-      await wait(150);
-      const after = document.querySelectorAll(ROW_SELECTOR).length;
+      const after = await waitForRowCountChange(before, 2000);
       if (after > before) return;
+      if (after === before) break;
+      // after < before: was already expanded, we just collapsed it - loop once more
+      // with a fresh row lookup to re-expand it.
     }
+    console.warn(
+      `[Forecast Tweaks] expand toggle click didn't expand task ${taskId} - the toggle detection may need updating for a new Forecast layout`
+    );
   }
 
-  async function expandAllVisibleOnce() {
-    const rows = Array.from(document.querySelectorAll(ROW_SELECTOR));
-    const taskIds = rows
-      .filter((row) => row.querySelector(EXPAND_TOGGLE_SELECTOR))
-      .map((row) => row.querySelector('[data-cy="task-id"]').textContent.trim());
-    for (const taskId of taskIds) {
-      await ensureExpandedByTaskId(taskId);
+  async function expandAllVisibleOnce(processed) {
+    // Expanding a row can reveal a subtask that's itself a parent (nested subtasks) with
+    // its own toggle - re-scan after each round so those get caught too, instead of only
+    // expanding whatever was visible in the initial snapshot. `processed` is shared across
+    // the whole Select All run (see toggleSelectAll) rather than reset per call - the
+    // scroll loop's 30% overlap means a row can still be visible on the next scroll step,
+    // and re-clicking a toggle we already expanded would just collapse it again.
+    let progressed = true;
+    let safety = 0;
+    while (progressed && safety < 50) {
+      progressed = false;
+      safety += 1;
+      const rows = Array.from(document.querySelectorAll(ROW_SELECTOR));
+      const baselineLength = getToggleBaselineLength(rows);
+      const taskIds = rows
+        // A row with a toggle but no task-id would throw on the map below - skip it
+        // rather than assume the two always go together.
+        .filter((row) => hasExpandToggle(row, baselineLength) && row.querySelector('[data-cy="task-id"]'))
+        .map((row) => row.querySelector('[data-cy="task-id"]').textContent.trim())
+        .filter((taskId) => !processed.has(taskId));
+      for (const taskId of taskIds) {
+        processed.add(taskId);
+        await ensureExpandedByTaskId(taskId);
+        progressed = true;
+      }
     }
   }
 
@@ -212,21 +309,29 @@
     }
   }
 
+  // Deselecting via our own per-checkbox logic is where the expand/collapse detection
+  // above tends to misfire on large boards (a click that fails to expand a filtered-out
+  // or already-open group can leave its checkboxes unreachable) - so once anything is
+  // selected, defer to Forecast's own clear-selection button instead of reimplementing it.
   async function toggleSelectAll() {
+    if (document.querySelector(BULK_SELECTION_BAR_SELECTOR)) {
+      clickNativeClearSelection();
+      return;
+    }
+
     const btn = document.getElementById('forecast-tweaks-select-all-btn');
-    const initialBoxes = document.querySelectorAll(CHECKBOX_SELECTOR);
-    const targetChecked = Array.from(initialBoxes).some((box) => !box.checked);
 
     if (btn) {
       btn.disabled = true;
       btn.textContent = 'Working...';
     }
 
+    const expandedTaskIds = new Set();
     const container = document.querySelector(SCROLL_CONTAINER_SELECTOR);
     if (!container) {
       // Fallback: couldn't find the scroll container, best-effort on visible rows only.
-      await expandAllVisibleOnce();
-      await clickMismatchedCheckboxesVisible(targetChecked);
+      await expandAllVisibleOnce(expandedTaskIds);
+      await clickMismatchedCheckboxesVisible(true);
     } else {
       const originalScrollTop = container.scrollTop;
       let scrollTop = 0;
@@ -236,19 +341,25 @@
         safety += 1;
         container.scrollTop = scrollTop;
         await wait(200);
-        await expandAllVisibleOnce();
-        await clickMismatchedCheckboxesVisible(targetChecked);
+        await expandAllVisibleOnce(expandedTaskIds);
+        await clickMismatchedCheckboxesVisible(true);
         const maxScroll = container.scrollHeight - container.clientHeight;
         if (scrollTop >= maxScroll || safety > 200) break;
         scrollTop = Math.min(scrollTop + container.clientHeight * 0.7, maxScroll);
       }
       container.scrollTop = originalScrollTop;
       await wait(200);
-      await clickMismatchedCheckboxesVisible(targetChecked);
+      await clickMismatchedCheckboxesVisible(true);
     }
 
     if (btn) btn.disabled = false;
-    injectSelectAllButton();
+    updateSelectAllButtonLabel();
+  }
+
+  function updateSelectAllButtonLabel() {
+    const btn = document.getElementById('forecast-tweaks-select-all-btn');
+    if (!btn || btn.disabled) return;
+    btn.textContent = document.querySelector(BULK_SELECTION_BAR_SELECTOR) ? 'Deselect All' : 'Select All';
   }
 
   function injectSelectAllButton() {
@@ -273,11 +384,7 @@
       btn.addEventListener('click', toggleSelectAll);
       document.body.appendChild(btn);
     }
-
-    if (btn.disabled) return;
-    const boxes = document.querySelectorAll(CHECKBOX_SELECTOR);
-    const anyUnchecked = Array.from(boxes).some((box) => !box.checked);
-    btn.textContent = boxes.length > 0 && !anyUnchecked ? 'Deselect All' : 'Select All';
+    updateSelectAllButtonLabel();
   }
 
   // ---------- 4. Unified settings panel (features + status colours, issue #11) ----------
