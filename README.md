@@ -37,6 +37,18 @@ Forecast is a modern web app that changes its internal HTML structure over time,
 - **Select All**'s expand-toggle detection is structural (Forecast gives it no stable `data-cy`/aria markup to key off), so it can in principle break on a future Forecast redesign. It logs a console warning (`[Forecast Tweaks] expand toggle click didn't expand task ...`) if a click doesn't do what was expected, rather than failing silently — if you see that a lot, please open an issue.
 - **Text wrapping** works well up to ~3 lines. Beyond that, Forecast's own fixed row height clips further text with no ellipsis (a limitation of overriding a JS-controlled layout with CSS alone). Fine for most task names in practice.
 
+## Security
+
+This script has been independently reviewed for the risks typical of a browser userscript. Summary:
+
+- **No data leaves your browser.** Everything runs locally — settings are stored via Tampermonkey's `GM_setValue`/`GM_getValue`, and the script makes no network requests of its own.
+- **Scoped to Forecast.** The `@match` rule limits the script to `https://app.forecast.it/*` — it does not run on, or have access to, other sites.
+- **No unsafe HTML injection.** The only page content the script reads back (task status) is written using `textContent`, not `innerHTML`, so it's always treated as plain text, never parsed/executed as markup.
+- **No external dependencies.** The script is a single self-contained file — nothing is pulled in from a CDN or third party at runtime, so there's no supply-chain exposure beyond installing the script itself.
+- **Residual risk: display only, not a source of truth.** This script only changes how Forecast's data is *displayed* (colours, wrapping, selection) — it never edits or submits data back to Forecast. Still, as with any script that re-renders page content, a bug could in theory cause it to mis-render or mis-colour a status. Treat Forecast's own UI as the source of truth if anything looks inconsistent, and please [open an issue](../../issues) if you spot a mismatch.
+
+As always with any userscript (this one included): only install it from a source you trust, and review the code yourself if you'd like — see the [raw script file](https://raw.githubusercontent.com/pholbo/forecast-tweaks/main/forecast-tweaks.user.js).
+
 ## Contributing
 
 Issues and pull requests welcome. This project is intentionally simple — one script, no build step.
