@@ -51,7 +51,7 @@ As always with any userscript (this one included): only install it from a source
 
 ## Contributing
 
-Issues and pull requests welcome. This project is intentionally simple — one script, no build step.
+Issues welcome. Feel free to fork or branch if you want to tweak something yourself, but merges into this repo are controlled by the maintainer. This project is intentionally simple — one script, no build step.
 
 ## License
 
